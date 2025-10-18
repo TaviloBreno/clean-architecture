@@ -147,115 +147,208 @@ The application will automatically:
 | **GraphQL** | 8081 | `http://localhost:8081` | Query language API |
 | **MySQL** | 3306 | `localhost:3306` | Database |
 
----
-export DB_PASSWORD=password
-export DB_NAME=orders
+## API Documentation
+
+### REST API (Port 8080)
+
+#### Create Order
+```http
+POST /order
+Content-Type: application/json
+
+{
+  "id": "",
+  "price": "100.50", 
+  "tax": "10.50"
+}
 ```
 
-4. Execute a aplicação:
+**Response:**
+```json
+{
+  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+  "price": 100.50,
+  "tax": 10.50,
+  "final_price": 111.00
+}
+```
+
+#### List Orders
+```http
+GET /order
+```
+
+**Response:**
+```json
+[
+  {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "price": 100.50,
+    "tax": 10.50,
+    "final_price": 111.00
+  }
+]
+```
+
+### gRPC API (Port 50051)
+
+#### Service Definition
+```protobuf
+service OrderService {
+  rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+}
+```
+
+#### Usage Examples
 ```bash
-go run cmd/server/main.go
+# Install grpcurl (if needed)
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
+# List available services
+grpcurl -plaintext localhost:50051 list
+
+# Create order
+grpcurl -plaintext -d '{"price": "100.50", "tax": "10.50"}' \
+  localhost:50051 pb.OrderService/CreateOrder
+
+# List orders
+grpcurl -plaintext localhost:50051 pb.OrderService/ListOrders
 ```
 
-## 🌐 Endpoints e Portas
+### GraphQL API (Port 8081)
 
-### REST API - Porta 8080
-- **POST** `/order` - Criar um novo pedido
-- **GET** `/order` - Listar todos os pedidos
+#### Interactive Playground
+Visit: `http://localhost:8081/`
 
-### gRPC Service - Porta 50051
-- `CreateOrder(CreateOrderRequest) returns (CreateOrderResponse)`
-- `ListOrders(ListOrdersRequest) returns (ListOrdersResponse)`
-
-### GraphQL API - Porta 8081
-- **Endpoint**: `http://localhost:8081/query`
-- **Playground**: `http://localhost:8081/`
-
-## 📝 Exemplos de Uso
-
-### REST API
-
-Você pode usar o arquivo `api.http` incluído no projeto ou os exemplos abaixo:
-
-**Criar pedido:**
-```bash
-curl -X POST http://localhost:8080/order \
-  -H "Content-Type: application/json" \
-  -d '{"price": "100.50", "tax": "10.50"}'
+#### Query Examples
+**List Orders:**
+```graphql
+query {
+  orders {
+    id
+    price
+    tax
+    final_price
+  }
+}
 ```
 
-**Listar pedidos:**
-```bash
-curl http://localhost:8080/order
-```
-
-### GraphQL
-
-**Listar pedidos:**
+**HTTP Request:**
 ```bash
 curl -X POST http://localhost:8081/query \
   -H "Content-Type: application/json" \
   -d '{"query": "{ orders { id price tax final_price } }"}'
 ```
 
-**Criar pedido (exemplo - não implementado completamente):**
-```bash
-curl -X POST http://localhost:8081/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "mutation { createOrder(input: {price: \"100.0\", tax: \"10.0\"}) { id price tax final_price } }"}'
-```
+---
 
-### gRPC
+## Development
 
-Para testar o gRPC, você pode usar ferramentas como `grpcurl` ou `Evans`:
+### Local Development Setup
 
-```bash
-# Instalar grpcurl
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+1. **Install Go 1.21+**
+   ```bash
+   # Check Go version
+   go version
+   ```
 
-# Listar serviços
-grpcurl -plaintext localhost:50051 list
+2. **Start MySQL locally**
+   ```bash
+   docker run --name mysql-orders -p 3306:3306 \
+     -e MYSQL_ROOT_PASSWORD=root \
+     -e MYSQL_DATABASE=orders \
+     -e MYSQL_USER=user \
+     -e MYSQL_PASSWORD=password \
+     -d mysql:8.0
+   ```
 
-# Criar pedido
-grpcurl -plaintext -d '{"price": "100.50", "tax": "10.50"}' localhost:50051 pb.OrderService/CreateOrder
+3. **Run migrations**
+   ```sql
+   USE orders;
+   CREATE TABLE IF NOT EXISTS orders (
+       id VARCHAR(36) PRIMARY KEY,
+       price DECIMAL(10,2) NOT NULL,
+       tax DECIMAL(10,2) NOT NULL,
+       final_price DECIMAL(10,2) NOT NULL,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   );
+   ```
 
-# Listar pedidos
-grpcurl -plaintext localhost:50051 pb.OrderService/ListOrders
-```
+4. **Start the application**
+   ```bash
+   go run cmd/server/main.go
+   ```
 
-## 🧪 Testando com api.http
+### Environment Variables
 
-O projeto inclui um arquivo `api.http` com exemplos prontos para usar no VS Code com a extensão REST Client:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_HOST` | `localhost` | Database host |
+| `DB_PORT` | `3306` | Database port |
+| `DB_USER` | `user` | Database username |
+| `DB_PASSWORD` | `password` | Database password |
+| `DB_NAME` | `orders` | Database name |
 
-1. Abra o arquivo `api.http` no VS Code
-2. Clique em "Send Request" acima de cada exemplo
-3. Teste a criação e listagem de pedidos
+### Database Schema
 
-## 📁 Estrutura do Banco de Dados
-
-### Tabela `orders`
 ```sql
 CREATE TABLE orders (
-    id VARCHAR(36) PRIMARY KEY,           -- UUID do pedido
-    price DECIMAL(10,2) NOT NULL,        -- Preço base
-    tax DECIMAL(10,2) NOT NULL,          -- Taxa
-    final_price DECIMAL(10,2) NOT NULL,  -- Preço final (price + tax)
+    id VARCHAR(36) PRIMARY KEY,
+    price DECIMAL(10,2) NOT NULL,
+    tax DECIMAL(10,2) NOT NULL, 
+    final_price DECIMAL(10,2) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-## 🔍 Logs e Monitoramento
+---
 
-Quando a aplicação iniciar, você verá logs indicando que os serviços estão rodando:
+## Testing
 
+### Using api.http File
+
+The project includes an `api.http` file with ready-to-use examples for VS Code with the REST Client extension:
+
+1. Open `api.http` in VS Code
+2. Install the REST Client extension
+3. Click "Send Request" above each example
+4. Test order creation and listing
+
+### Manual Testing
+
+**Health Check:**
+```bash
+curl http://localhost:8080/order
 ```
-2024/10/18 10:30:00 gRPC server running on port 50051
-2024/10/18 10:30:00 GraphQL server running on port 8081
-2024/10/18 10:30:00 connect to http://localhost:8081/ for GraphQL playground
-2024/10/18 10:30:00 REST server running on port 8080
+
+**Create Order:**
+```bash
+curl -X POST http://localhost:8080/order \
+  -H "Content-Type: application/json" \
+  -d '{"price": "100.50", "tax": "10.50"}'
 ```
 
-## 🛠️ Desenvolvimento
+### Service Monitoring
+
+Monitor service logs:
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f app
+docker compose logs -f mysql
+```
+
+Expected startup logs:
+```
+app_1    | gRPC server running on port 50051
+app_1    | GraphQL server running on port 8081 
+app_1    | REST server running on port 8080
+```
+
+---
 
 ### Estrutura dos Use Cases
 
